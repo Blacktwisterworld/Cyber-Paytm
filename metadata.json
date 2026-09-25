@@ -1,0 +1,6 @@
+{
+  "name": "HF Dataset Explorer",
+  "description": "Fast and efficient search and export for large Hugging Face Parquet datasets (7M+ rows).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
