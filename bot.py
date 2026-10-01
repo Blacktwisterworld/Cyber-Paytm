@@ -1,26 +1,61 @@
 import os
 import asyncio
+import threading
+
 import duckdb
+from flask import Flask
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-DATA_URL = "https://huggingface.co/datasets/Cyber-insight-309/paytm/resolve/main/user.parquet"
 
+DATA_URL = (
+    "https://huggingface.co/datasets/"
+    "Cyber-insight-309/paytm/resolve/main/user.parquet"
+)
+
+# ---------------- HTTP SERVER ----------------
+
+web = Flask(__name__)
+
+
+@web.route("/")
+def home():
+    return "Cyber-Paytm Bot is running"
+
+
+@web.route("/health")
+def health():
+    return "OK"
+
+
+def run_web():
+    port = int(os.getenv("PORT", "10000"))
+    web.run(host="0.0.0.0", port=port)
+
+
+# ---------------- DATABASE SEARCH ----------------
 
 def search_mobile(mobile):
     con = duckdb.connect(":memory:")
 
     try:
         query = """
-        SELECT *
-        FROM read_parquet(?)
-        WHERE mobile = ?
-        LIMIT 10
+            SELECT *
+            FROM read_parquet(?)
+            WHERE CAST(mobile AS VARCHAR) = ?
+            LIMIT 10
         """
 
         result = con.execute(query, [DATA_URL, mobile])
-        columns = [x[0] for x in result.description]
+
+        columns = [column[0] for column in result.description]
         rows = result.fetchall()
 
         return columns, rows
@@ -28,6 +63,8 @@ def search_mobile(mobile):
     finally:
         con.close()
 
+
+# ---------------- TELEGRAM BOT ----------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -37,7 +74,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mobile = update.message.text.strip()
+    mobile = (update.message.text or "").strip()
 
     if not mobile.isdigit():
         await update.message.reply_text(
@@ -45,7 +82,9 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    msg = await update.message.reply_text("🔎 Searching...")
+    status = await update.message.reply_text(
+        "🔎 Searching..."
+    )
 
     try:
         columns, rows = await asyncio.to_thread(
@@ -54,40 +93,61 @@ async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         if not rows:
-            await msg.edit_text("❌ No result found.")
+            await status.edit_text(
+                "❌ No result found."
+            )
             return
 
         row = rows[0]
 
-        output = ["✅ RESULT FOUND", ""]
+        output = [
+            "✅ RESULT FOUND",
+            ""
+        ]
 
         for column, value in zip(columns, row):
             if value is None:
                 value = "null"
 
-            output.append(f"{column}: {value}")
+            output.append(
+                f"{column}: {value}"
+            )
 
         text = "\n".join(output)
 
-        await msg.delete()
+        await status.delete()
 
         # Telegram message limit protection
         for i in range(0, len(text), 4000):
-            await update.message.reply_text(text[i:i + 4000])
+            await update.message.reply_text(
+                text[i:i + 4000]
+            )
 
-    except Exception as e:
-        await msg.edit_text(
-            f"❌ Error:\n{str(e)}"
+    except Exception as error:
+        await status.edit_text(
+            f"❌ Search Error:\n{error}"
         )
 
+
+# ---------------- MAIN ----------------
 
 def main():
     if not BOT_TOKEN:
         raise RuntimeError(
-            "BOT_TOKEN environment variable missing"
+            "BOT_TOKEN environment variable is missing."
         )
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    # Start HTTP server for Render
+    threading.Thread(
+        target=run_web,
+        daemon=True
+    ).start()
+
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .build()
+    )
 
     app.add_handler(
         CommandHandler("start", start)
@@ -100,7 +160,7 @@ def main():
         )
     )
 
-    print("🤖 BOT ONLINE")
+    print("🤖 CYBER-PAYTM BOT ONLINE")
 
     app.run_polling()
 
