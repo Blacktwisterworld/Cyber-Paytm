@@ -25,9 +25,7 @@ DATA_URL = (
     "Cyber-insight-309/paytm/resolve/main/user.parquet"
 )
 
-# =========================================================
-# HTTP SERVER
-# =========================================================
+# ---------------- HTTP SERVER ----------------
 
 web = Flask(__name__)
 
@@ -47,9 +45,7 @@ def run_web():
     web.run(host="0.0.0.0", port=port)
 
 
-# =========================================================
-# DATABASE SEARCH
-# =========================================================
+# ---------------- DATABASE SEARCH ----------------
 
 def search_mobile(mobile):
     con = duckdb.connect(":memory:")
@@ -62,16 +58,9 @@ def search_mobile(mobile):
             LIMIT 10
         """
 
-        result = con.execute(
-            query,
-            [DATA_URL, mobile]
-        )
+        result = con.execute(query, [DATA_URL, mobile])
 
-        columns = [
-            column[0]
-            for column in result.description
-        ]
-
+        columns = [column[0] for column in result.description]
         rows = result.fetchall()
 
         return columns, rows
@@ -80,236 +69,132 @@ def search_mobile(mobile):
         con.close()
 
 
-# =========================================================
-# MAIN MENU
-# =========================================================
+# ---------------- KEYBOARDS ----------------
 
 def main_menu():
-
     keyboard = [
         [
             InlineKeyboardButton(
-                "🔎 Search Number",
+                "🔎 Number Search",
                 callback_data="search_number"
             )
         ],
         [
             InlineKeyboardButton(
-                "👨‍💻 Developer",
-                callback_data="developer"
+                "👨‍💻 Developer About",
+                callback_data="developer_about"
             )
         ],
     ]
-
     return InlineKeyboardMarkup(keyboard)
 
 
-# =========================================================
-# START COMMAND
-# =========================================================
+# ---------------- TELEGRAM BOT ----------------
 
-async def start(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
-
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "╔══════════════════════════╗\n"
-        "       🤖 CYBER-PAYTM\n"
-        "╚══════════════════════════╝\n\n"
-        "Welcome! 👋\n\n"
-        "Select an option below:",
-        reply_markup=main_menu()
+        "👋 Welcome to Cyber-Paytm Bot\n\n"
+        "Niche button se option choose karo:",
+        reply_markup=main_menu(),
     )
 
 
-# =========================================================
-# BUTTON HANDLER
-# =========================================================
-
-async def button_handler(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
-
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-
     await query.answer()
 
     if query.data == "search_number":
-
-        await query.edit_message_text(
-            "╔══════════════════════════╗\n"
-            "       🔎 SEARCH NUMBER\n"
-            "╚══════════════════════════╝\n\n"
-            "📱 Please send the mobile number."
+        await query.message.reply_text(
+            "🔎 Mobile number bhejo.\n\n"
+            "Example: 9876543210"
         )
 
-    elif query.data == "developer":
-
-        await query.edit_message_text(
-            "╔══════════════════════════╗\n"
-            "        👨‍💻 DEVELOPER\n"
-            "╚══════════════════════════╝\n\n"
-            "📱 Telegram\n"
-            "@cyber_insight_309\n\n"
-            "📸 Instagram\n"
-            "cyber_insight_309\n\n"
-            "━━━━━━━━━━━━━━━━━━━━\n"
-            "🤖 Cyber-Paytm"
+    elif query.data == "developer_about":
+        about_text = (
+            "👨‍💻 DEVELOPER ABOUT\n"
+            "━━━━━━━━━━━━━━━\n\n"
+            "📱 Telegram: @cyber_insight_309\n"
+            "📸 Instagram: cyber_insight_309\n\n"
+            "🔗 Cyber Insight"
+        )
+        await query.message.reply_text(
+            about_text,
+            reply_markup=main_menu(),
         )
 
 
-# =========================================================
-# NUMBER SEARCH
-# =========================================================
-
-async def search(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE
-):
-
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mobile = (update.message.text or "").strip()
 
     if not mobile.isdigit():
-
         await update.message.reply_text(
-            "❌ INVALID INPUT\n\n"
-            "Please send a valid mobile number."
+            "❌ Sirf mobile number bhejo.",
+            reply_markup=main_menu(),
         )
-
         return
 
     status = await update.message.reply_text(
-        "🔎 Searching...\n"
-        "Please wait."
+        "🔎 Searching..."
     )
 
     try:
-
-        # IMPORTANT:
-        # Actual database search happens here.
-
         columns, rows = await asyncio.to_thread(
             search_mobile,
             mobile
         )
 
-        # -------------------------------------------------
-        # NO RESULT
-        # -------------------------------------------------
-
         if not rows:
-
             await status.edit_text(
-                "╔══════════════════════════╗\n"
-                "        ❌ NO RESULT\n"
-                "╚══════════════════════════╝\n\n"
-                f"📱 Number: {mobile}\n\n"
-                "No matching record was found."
+                "❌ No result found.",
+                reply_markup=main_menu(),
             )
-
             return
-
-        # -------------------------------------------------
-        # RESULT
-        # -------------------------------------------------
-
-        output = [
-            "╔══════════════════════════╗",
-            "        🔎 SEARCH RESULT",
-            "╚══════════════════════════╝",
-            "",
-            f"📱 Number: {mobile}",
-            "",
-            "━━━━━━━━━━━━━━━━━━━━",
-            ""
-        ]
 
         row = rows[0]
 
-        for column, value in zip(columns, row):
+        output = [
+            "✅ RESULT FOUND",
+            ""
+        ]
 
+        for column, value in zip(columns, row):
             if value is None:
                 value = "null"
 
-            label = column.replace(
-                "_",
-                " "
-            ).title()
-
             output.append(
-                f"🔹 {label}"
+                f"{column}: {value}"
             )
-
-            output.append(
-                f"   {value}"
-            )
-
-            output.append("")
-
-        # -------------------------------------------------
-        # CREDIT
-        # -------------------------------------------------
-
-        output.extend([
-            "━━━━━━━━━━━━━━━━━━━━",
-            "",
-            "👨‍💻 Developer",
-            "📱 Telegram: @cyber_insight_309",
-            "📸 Instagram: cyber_insight_309",
-            "",
-            "━━━━━━━━━━━━━━━━━━━━",
-            "🤖 Cyber-Paytm"
-        ])
 
         text = "\n".join(output)
 
         await status.delete()
 
-        # -------------------------------------------------
-        # TELEGRAM MESSAGE LIMIT
-        # -------------------------------------------------
-
-        for i in range(
-            0,
-            len(text),
-            4000
-        ):
-
+        # Telegram message limit protection
+        for i in range(0, len(text), 4000):
             await update.message.reply_text(
                 text[i:i + 4000]
             )
 
+        await update.message.reply_text(
+            "🔄 Aur search karne ke liye button dabao:",
+            reply_markup=main_menu(),
+        )
+
     except Exception as error:
-
-        print(
-            "SEARCH ERROR:",
-            error
-        )
-
         await status.edit_text(
-            "╔══════════════════════════╗\n"
-            "        ❌ SEARCH ERROR\n"
-            "╚══════════════════════════╝\n\n"
-            "Something went wrong while searching.\n\n"
-            "Please try again."
+            f"❌ Search Error:\n{error}"
         )
 
 
-# =========================================================
-# MAIN
-# =========================================================
+# ---------------- MAIN ----------------
 
 def main():
-
     if not BOT_TOKEN:
-
         raise RuntimeError(
             "BOT_TOKEN environment variable is missing."
         )
 
-    # Start Render HTTP server
+    # Start HTTP server for Render
     threading.Thread(
         target=run_web,
         daemon=True
@@ -321,22 +206,14 @@ def main():
         .build()
     )
 
-    # /start
     app.add_handler(
-        CommandHandler(
-            "start",
-            start
-        )
+        CommandHandler("start", start)
     )
 
-    # Buttons
     app.add_handler(
-        CallbackQueryHandler(
-            button_handler
-        )
+        CallbackQueryHandler(button_handler)
     )
 
-    # Mobile number
     app.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
@@ -344,9 +221,7 @@ def main():
         )
     )
 
-    print(
-        "🤖 CYBER-PAYTM BOT ONLINE"
-    )
+    print("🤖 CYBER-PAYTM BOT ONLINE")
 
     app.run_polling()
 
