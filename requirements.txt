@@ -1,1 +1,2 @@
-
+python-telegram-bot==22.5
+duckdb==1.4.1
